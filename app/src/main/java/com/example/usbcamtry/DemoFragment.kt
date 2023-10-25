@@ -1,26 +1,22 @@
 package com.example.usbcamtry
 
+
 import android.content.Context
 import android.hardware.usb.UsbDevice
-//import android.support.v7.widget.GridLayoutManager
-//import android.support.v7.widget.LinearLayoutManager
-import android.view.LayoutInflater
-import android.view.View
-import android.view.ViewGroup
+import android.view.*
 import android.widget.ImageView
-import androidx.recyclerview.widget.GridLayoutManager
-//import androidx.test.core.app.ApplicationProvider.getApplicationContext
 import com.chad.library.adapter.base.BaseQuickAdapter
 import com.chad.library.adapter.base.BaseViewHolder
 import com.example.usbcamtry.databinding.FragmentDemoBinding
 import com.jiangdg.ausbc.MultiCameraClient
 import com.jiangdg.ausbc.base.MultiCameraFragment
 import com.jiangdg.ausbc.callback.ICameraStateCallBack
-import com.jiangdg.ausbc.callback.ICaptureCallBack
 import com.jiangdg.ausbc.camera.CameraUVC
 import com.jiangdg.ausbc.camera.bean.CameraRequest
 import com.jiangdg.ausbc.utils.ToastUtils
 
+
+//TODO Permission writing to storage
 
 /** Multi-road camera demo
  *
@@ -35,6 +31,7 @@ class DemoMultiCameraFragment : MultiCameraFragment(), ICameraStateCallBack {
     private val mHasRequestPermissionList by lazy {
         ArrayList<MultiCameraClient.ICamera>()
     }
+    private var mCurrentCameraPosition = 0
 
     override fun onCameraAttached(camera: MultiCameraClient.ICamera) {
         mAdapter.data.add(camera)
@@ -62,15 +59,21 @@ class DemoMultiCameraFragment : MultiCameraFragment(), ICameraStateCallBack {
     }
 
     override fun onCameraConnected(camera: MultiCameraClient.ICamera) {
-        for ((position, cam) in mAdapter.data.withIndex()) {
+        /*for ((position, cam) in mAdapter.data.withIndex()) {
             if (cam.getUsbDevice().deviceId == camera.getUsbDevice().deviceId) {
                 val textureView = mAdapter.getViewByPosition(position, R.id.multi_camera_texture_view)
                 cam.openCamera(textureView, getCameraRequest())
                 cam.setCameraStateCallBack(this)
                 break
             }
-        }
+        }*/
         // request permission for other camera
+
+        val camer = mAdapter.data[mCurrentCameraPosition]
+        val fullScreenTextureView = mViewBinding.multiCameraFullScreenTextureView
+        camer.openCamera(fullScreenTextureView, getCameraRequest())
+        camer.setCameraStateCallBack(this)
+
         mAdapter.data.forEach { cam ->
             val device = cam.getUsbDevice()
             if (! hasPermission(device)) {
@@ -102,12 +105,39 @@ class DemoMultiCameraFragment : MultiCameraFragment(), ICameraStateCallBack {
         }
     }
 
-
     override fun initView() {
         super.initView()
         openDebug(true)
         mAdapter = CameraAdapter()
         mAdapter.setNewData(mCameraList)
+/*
+0 1
+1 + 1  = 2
+2 % 2 = 0
+ */
+        //mAdapter.bindToRecyclerView(mViewBinding.multiCameraRv)
+        //mViewBinding.multiCameraRv.adapter = mAdapter
+        //mViewBinding.multiCameraRv.layoutManager = GridLayoutManager(requireContext(), 2)
+        mViewBinding.multiCameraFullBtn.setOnClickListener {
+            //mViewBinding.textView.text = mCurrentCameraPosition.toString()+"  "+mAdapter.data.size.toString()
+            if (mAdapter.data.isNotEmpty()) {
+                var camera = mAdapter.data[mCurrentCameraPosition]
+                camera.closeCamera()
+                mCurrentCameraPosition = (mCurrentCameraPosition + 1) % (mAdapter.data.size)
+                camera = mAdapter.data[mCurrentCameraPosition]
+                val fullScreenTextureView = mViewBinding.multiCameraFullScreenTextureView
+                /*val textureView = mAdapter.getViewByPosition(
+                    mCurrentCameraPosition,
+                    R.id.multi_camera_texture_view
+                )*/
+                //fullScreenTextureView.visibility = View.VISIBLE
+                //textureView!!.visibility = View.GONE
+                camera.openCamera(fullScreenTextureView, getCameraRequest())
+                camera.setCameraStateCallBack(this)
+            }
+        }
+
+        /*
         mAdapter.bindToRecyclerView(mViewBinding.multiCameraRv)
         mViewBinding.multiCameraRv.adapter = mAdapter
         mViewBinding.multiCameraRv.layoutManager = GridLayoutManager(requireContext(), 2)
@@ -153,7 +183,7 @@ class DemoMultiCameraFragment : MultiCameraFragment(), ICameraStateCallBack {
                 else -> {
                 }
             }
-        }
+        }*/
     }
 
     override fun getRootView(inflater: LayoutInflater, container: ViewGroup?): View {
@@ -162,10 +192,12 @@ class DemoMultiCameraFragment : MultiCameraFragment(), ICameraStateCallBack {
     }
 
     private fun getCameraRequest(): CameraRequest {
+        val height = mViewBinding.root.height
+        val width = mViewBinding.root.width
         return CameraRequest.Builder()
             .setRenderMode(CameraRequest.RenderMode.NORMAL)
-            .setPreviewWidth(640)
-            .setPreviewHeight(480)
+            .setPreviewWidth(width)
+            .setPreviewHeight(height)
             .create()
     }
 
