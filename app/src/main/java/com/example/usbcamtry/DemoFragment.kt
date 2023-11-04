@@ -11,9 +11,11 @@ import com.example.usbcamtry.databinding.FragmentDemoBinding
 import com.jiangdg.ausbc.MultiCameraClient
 import com.jiangdg.ausbc.base.MultiCameraFragment
 import com.jiangdg.ausbc.callback.ICameraStateCallBack
+import com.jiangdg.ausbc.callback.IPreviewDataCallBack
 import com.jiangdg.ausbc.camera.CameraUVC
 import com.jiangdg.ausbc.camera.bean.CameraRequest
 import com.jiangdg.ausbc.utils.ToastUtils
+import org.opencv.osgi.OpenCVInterface
 
 
 //TODO Permission writing to storage
@@ -70,6 +72,7 @@ class DemoMultiCameraFragment : MultiCameraFragment(), ICameraStateCallBack {
         // request permission for other camera
 
         val camer = mAdapter.data[mCurrentCameraPosition]
+        //camer.addPreviewDataCallBack(IPreviewDataCallBack())
         val fullScreenTextureView = mViewBinding.multiCameraFullScreenTextureView
         camer.openCamera(fullScreenTextureView, getCameraRequest())
         camer.setCameraStateCallBack(this)
