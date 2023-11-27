@@ -2,8 +2,11 @@ package com.example.usbcamtry
 
 
 import android.content.Context
+import android.graphics.*
 import android.hardware.usb.UsbDevice
-import android.view.*
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
 import android.widget.ImageView
 import com.chad.library.adapter.base.BaseQuickAdapter
 import com.chad.library.adapter.base.BaseViewHolder
@@ -15,7 +18,10 @@ import com.jiangdg.ausbc.callback.IPreviewDataCallBack
 import com.jiangdg.ausbc.camera.CameraUVC
 import com.jiangdg.ausbc.camera.bean.CameraRequest
 import com.jiangdg.ausbc.utils.ToastUtils
-import org.opencv.osgi.OpenCVInterface
+import org.opencv.core.Mat
+import java.io.ByteArrayOutputStream
+import java.io.IOException
+import kotlin.experimental.and
 
 
 //TODO Permission writing to storage
@@ -25,6 +31,7 @@ import org.opencv.osgi.OpenCVInterface
  * @author Created by jiangdg on 2022/7/20
  */
 class DemoMultiCameraFragment : MultiCameraFragment(), ICameraStateCallBack {
+    var isImg = false;
     private lateinit var mAdapter: CameraAdapter
     private lateinit var mViewBinding: FragmentDemoBinding
     private val mCameraList by lazy {
@@ -72,11 +79,9 @@ class DemoMultiCameraFragment : MultiCameraFragment(), ICameraStateCallBack {
         // request permission for other camera
 
         val camer = mAdapter.data[mCurrentCameraPosition]
-        //camer.addPreviewDataCallBack(IPreviewDataCallBack())
         val fullScreenTextureView = mViewBinding.multiCameraFullScreenTextureView
-        camer.openCamera(fullScreenTextureView, getCameraRequest())
+        camer.openCamera(null, getCameraRequest()) /*TODO*/
         camer.setCameraStateCallBack(this)
-
         mAdapter.data.forEach { cam ->
             val device = cam.getUsbDevice()
             if (! hasPermission(device)) {
@@ -108,16 +113,42 @@ class DemoMultiCameraFragment : MultiCameraFragment(), ICameraStateCallBack {
         }
     }
 
+    private fun nv21ToBitmap(nv21: ByteArray, width: Int, height: Int): Bitmap? {
+        var bitmap: Bitmap? = null
+        try {
+            val image = YuvImage(nv21, ImageFormat.NV21, width, height, null)
+            val stream = ByteArrayOutputStream()
+            image.compressToJpeg(Rect(0, 0, width, height), 20, stream)
+            bitmap = BitmapFactory.decodeByteArray(stream.toByteArray(), 0, stream.size())
+            stream.close()
+        } catch (e: IOException) {
+            e.printStackTrace()
+        }
+        return bitmap
+    }
+
+    fun bitmapFromRgba(width: Int, height: Int, bytes: ByteArray): Bitmap? {
+        val pixels = IntArray(bytes.size / 4)
+        var j = 0
+        for (i in pixels.indices) {
+            val R: Int = (bytes[j++] and 0xff.toByte()).toInt()
+            val G: Int = (bytes[j++] and 0xff.toByte()).toInt()
+            val B: Int = (bytes[j++] and 0xff.toByte()).toInt()
+            val A: Int = (bytes[j++] and 0xff.toByte()).toInt()
+            val pixel = A shl 24 or (R shl 16) or (G shl 8) or B
+            pixels[i] = pixel
+        }
+        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        bitmap.setPixels(pixels, 0, width, 0, 0, width, height)
+        return bitmap
+    }
+
     override fun initView() {
         super.initView()
         openDebug(true)
         mAdapter = CameraAdapter()
         mAdapter.setNewData(mCameraList)
-/*
-0 1
-1 + 1  = 2
-2 % 2 = 0
- */
+
         //mAdapter.bindToRecyclerView(mViewBinding.multiCameraRv)
         //mViewBinding.multiCameraRv.adapter = mAdapter
         //mViewBinding.multiCameraRv.layoutManager = GridLayoutManager(requireContext(), 2)
@@ -129,14 +160,31 @@ class DemoMultiCameraFragment : MultiCameraFragment(), ICameraStateCallBack {
                 mCurrentCameraPosition = (mCurrentCameraPosition + 1) % (mAdapter.data.size)
                 camera = mAdapter.data[mCurrentCameraPosition]
                 val fullScreenTextureView = mViewBinding.multiCameraFullScreenTextureView
-                /*val textureView = mAdapter.getViewByPosition(
-                    mCurrentCameraPosition,
-                    R.id.multi_camera_texture_view
-                )*/
-                //fullScreenTextureView.visibility = View.VISIBLE
-                //textureView!!.visibility = View.GONE
-                camera.openCamera(fullScreenTextureView, getCameraRequest())
+                camera.addPreviewDataCallBack(object: IPreviewDataCallBack{
+                    override fun onPreviewData(
+                        data: ByteArray?,
+                        width: Int,
+                        height: Int,
+                        format: IPreviewDataCallBack.DataFormat
+                    ) {
+                        if (data != null && !isImg) {
+                            isImg = true
+                            mViewBinding.textView.text = format.toString()
+                            var mat: Mat
+                            //val b: Bitmap?
+                            //val b = BitmapFactory.decodeByteArray(data, 0, data.size)
+                            val b = nv21ToBitmap(data, width, height)
+                            mViewBinding.imageView.setImageBitmap(b)
+                            mViewBinding.textView.text = "img showed"
+                        }/*else{
+                            mViewBinding.textView.text = "NO DATa"
+                        }*/
+                    }
+                })
+                camera.openCamera(null, getCameraRequest())/*TODO*/
                 camera.setCameraStateCallBack(this)
+                ToastUtils.show("onPreviewData")
+
             }
         }
 
@@ -195,12 +243,15 @@ class DemoMultiCameraFragment : MultiCameraFragment(), ICameraStateCallBack {
     }
 
     private fun getCameraRequest(): CameraRequest {
-        val height = mViewBinding.root.height
-        val width = mViewBinding.root.width
+        //val height = mViewBinding.root.height
+        //val width = mViewBinding.root.width
+        val height = 480
+        val width = 640
         return CameraRequest.Builder()
-            .setRenderMode(CameraRequest.RenderMode.NORMAL)
+            .setRenderMode(CameraRequest.RenderMode.OPENGL)
             .setPreviewWidth(width)
             .setPreviewHeight(height)
+            .setRawPreviewData(true)
             .create()
     }
 
